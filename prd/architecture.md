@@ -166,7 +166,7 @@ A comprehensive end-to-end integration test suite that validates the full data f
 By the end of Week 1, BIE has:
 - A frontend with a map, layers, markers, and a news feed panel
 - A backend with feed ingestion, NLP stubs, and event endpoints
-- An India hotspot database
+- A Global Strategic Hotspot Database covering 500+ locations
 
 These are built by different engineers. Without an integration test at this boundary:
 - **Silent failures** go undetected — the RSS worker ingests data, but the frontend panel shows nothing because field names don't match
@@ -189,8 +189,8 @@ These are built by different engineers. Without an integration test at this boun
 
 2. **Frontend integration tests** (Playwright or Cypress):
    - Load the map → verify MapLibre canvas renders
-   - Verify India geo layers (LAC, LOC, state borders) load without errors
-   - Verify regional presets change the map viewport correctly
+   - Verify strategic geo layers (LAC, LOC, chokepoints, BRI corridors) load without errors
+   - Verify regional presets (12+ global presets) change the map viewport correctly
    - Verify the news feed panel displays items from the backend
    - Verify clicking a map marker opens the detail panel
 

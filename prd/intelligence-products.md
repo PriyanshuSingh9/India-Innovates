@@ -8,82 +8,117 @@
 
 ### What Is Being Built
 
-An automated report generator that produces a structured **India Strategic Intelligence Brief** every 6 hours. The brief synthesizes all ingested events, instability scores, anomalies, and convergence alerts into a readable, actionable document — the kind of intelligence product a decision-maker would receive on their desk.
+An automated system that generates comprehensive intelligence briefs every 6 hours by synthesizing recent events, BII scores, anomaly alerts, and convergence signals into a structured, LLM-generated document. The brief provides Indian strategic personnel with a "morning report" covering global developments through India's strategic lens.
 
 ### Why It Is Needed
 
-Dashboards are great for real-time monitoring, but decision-makers need *summaries*. A general doesn't stare at a live map all day — they read a brief over morning tea. BIE's brief generator transforms the live data stream into a consumable intelligence product.
+Writing intelligence briefs manually takes hours. Analysts read hundreds of reports, cross-reference sources, and synthesize findings into a coherent document. BIE automates this by:
+- Aggregating the last 6 hours of events across all theaters
+- Weighting by BII scores and India-relevance
+- Detecting patterns (convergence, anomalies)
+- Using Claude API to synthesize a readable briefing document
 
-The demo script features this prominently: *"Click Generate Brief. Show India Strategic Intelligence Brief generating in real time. Mention it auto-generates every 6 hours."* This is what makes BIE an intelligence **engine**, not just a dashboard.
+This transforms BIE from a dashboard into an **intelligence production system**.
 
 ### What Use It Provides
 
-- **Auto-generated briefs** every 6 hours covering the last period
-- **On-demand generation** — analysts can click "Generate Brief" anytime
-- **Structured sections** — Executive Summary, Regional Analysis, Key Events, Threat Assessment, Recommendations
-- **LLM-powered writing** — Claude generates natural-language analysis from structured data
-- **Instability integration** — brief includes III scores and trends per region
-- **Streaming generation** — brief appears word-by-word in the UI for real-time feel
-- **PDF export** — option to export the brief as a formatted PDF
+- **Auto-generated every 6 hours** — always-current intelligence summary
+- **Global scope with India impact** — covers all theaters, explicitly analyzes India implications
+- **Structured format** — consistent sections for easy scanning
+- **Event citations** — every claim links back to source events
+- **Posture assessment** — current threat posture with trend analysis
+- **Watch items** — upcoming events and developing situations to monitor
+- **Exportable** — download as PDF or Markdown
 
 ### How It Is Built
 
-1. **Brief data assembly** — gather inputs for Claude prompt:
+1. **Brief sections**:
    ```python
-   async def assemble_brief_context(period_hours: int = 6) -> dict:
-       events = await get_recent_events(hours=period_hours)
-       instability = await get_instability_scores()
-       anomalies = await get_recent_anomalies(hours=period_hours)
-       convergences = await get_active_convergences()
-
-       return {
-           "period_start": datetime.utcnow() - timedelta(hours=period_hours),
-           "period_end": datetime.utcnow(),
-           "total_events": len(events),
-           "events_by_category": group_by(events, "category"),
-           "events_by_region": group_by(events, "region"),
-           "high_threat_events": [e for e in events if e.threat_level in ("HIGH", "CRITICAL")],
-           "instability_scores": instability,
-           "anomalies": anomalies,
-           "convergences": convergences,
-       }
+   BRIEF_TEMPLATE = {
+       "sections": [
+           {
+               "title": "Executive Summary",
+               "prompt": "Provide a 3-paragraph executive summary of the most significant global developments in the past 6 hours, focusing on their implications for Indian national security and strategic interests."
+           },
+           {
+               "title": "India Neighborhood Watch",
+               "prompt": "Analyze developments in India's immediate neighborhood (Pakistan, China border, Sri Lanka, Nepal, Bangladesh, Myanmar). Highlight any changes in military posture, diplomatic signals, or security incidents."
+           },
+           {
+               "title": "Indo-Pacific Theater",
+               "prompt": "Cover key developments in the Indo-Pacific: South China Sea, Taiwan Strait, East China Sea, Korean Peninsula, ASEAN dynamics. Assess implications for India's Act East Policy and QUAD."
+           },
+           {
+               "title": "Middle East & Energy Security",
+               "prompt": "Analyze events in the Middle East affecting India: Persian Gulf stability, Red Sea shipping, energy supply disruptions, diaspora security, India-Gulf state relations."
+           },
+           {
+               "title": "Global Strategic Developments",
+               "prompt": "Cover significant developments in Africa (BRI, security), Central Asia (SCO, Afghanistan), Europe (NATO, Russia), and Americas affecting India's interests."
+           },
+           {
+               "title": "Threat Assessment",
+               "prompt": "Provide a structured threat assessment showing BII scores for key regions, active anomalies, and convergence alerts. Rate overall strategic posture."
+           },
+           {
+               "title": "Watch Items",
+               "prompt": "List 3-5 developing situations that require monitoring over the next 24-48 hours. Include upcoming events (summits, exercises, elections) that may impact India."
+           }
+       ]
+   }
    ```
 
-2. **Claude prompt**:
-   ```
-   You are a senior intelligence analyst writing the India Strategic Intelligence
-   Brief for the period {period_start} to {period_end}.
-
-   Structure your brief in these sections:
-   1. EXECUTIVE SUMMARY (3-4 sentences, most critical developments)
-   2. REGIONAL ANALYSIS (per region: LAC, LOC, IOR, Northeast, Internal)
-   3. KEY EVENTS (top 5 events with analysis)
-   4. THREAT ASSESSMENT (overall posture, instability trends)
-   5. WATCH ITEMS (emerging patterns, things to monitor)
-
-   DATA:
-   {brief_context}
-
-   Write in a professional, concise intelligence style. Cite events by ID.
-   ```
-
-3. **Streaming endpoint**: `POST /api/brief/generate` returns a streaming response.
-
-4. **Caching**: generated briefs are cached for 6 hours (matching the generation interval). On-demand generation always produces a fresh brief.
-
-5. **Scheduled generation**: a cron-style task triggers brief generation every 6 hours:
+2. **Data gathering** — before calling Claude:
    ```python
-   # Using APScheduler or similar
-   scheduler.add_job(generate_brief, "interval", hours=6)
+   class BriefGenerator:
+       async def generate(self):
+           # Gather context
+           events = await self.get_events(hours=6)
+           bii_scores = await self.get_bii_all_regions()
+           anomalies = await self.get_active_anomalies()
+           convergence = await self.get_active_convergence()
+           top_entities = await self.get_trending_entities(hours=6)
+
+           # Build brief
+           sections = []
+           for section in BRIEF_TEMPLATE["sections"]:
+               context = self._build_section_context(
+                   section, events, bii_scores, anomalies, convergence, top_entities
+               )
+               content = await self.claude.generate(
+                   system="You are a senior intelligence analyst advising Indian strategic leadership. "
+                          "Write concise, actionable intelligence briefs. Cite event IDs where possible.",
+                   prompt=f"{section['prompt']}\n\nContext:\n{context}"
+               )
+               sections.append({"title": section["title"], "content": content})
+
+           return {
+               "id": str(uuid.uuid4()),
+               "generated_at": datetime.utcnow().isoformat(),
+               "period_start": (datetime.utcnow() - timedelta(hours=6)).isoformat(),
+               "period_end": datetime.utcnow().isoformat(),
+               "sections": sections,
+               "instability_scores": bii_scores,
+               "overall_posture": self._calculate_posture(bii_scores),
+           }
    ```
 
-6. **API endpoints**:
-   | Method | Path | Description |
-   |---|---|---|
-   | `POST` | `/api/brief/generate` | Generate a new brief (streaming) |
-   | `GET` | `/api/brief/latest` | Get the most recent cached brief |
-   | `GET` | `/api/brief/{id}` | Get a specific historical brief |
-   | `GET` | `/api/brief/history` | List all generated briefs |
+3. **Posture calculation** from brief data:
+   ```python
+   def _calculate_posture(self, bii_scores):
+       max_score = max(s["score"] for s in bii_scores.values())
+       if max_score > 0.8:
+           return "CRITICAL"
+       elif max_score > 0.6:
+           return "HIGH"
+       elif max_score > 0.4:
+           return "ELEVATED"
+       return "NORMAL"
+   ```
+
+4. **Scheduling**: runs every 6 hours via APScheduler. Latest brief cached in Redis (`bie:cache:brief:latest`, 6h TTL). Also triggerable manually via `POST /api/brief/generate`.
+
+5. **Cost optimization**: each brief makes ~7 Claude API calls (one per section). Claude responses are cached aggressively. Total cost per brief: ~$0.50–$1.00. Daily cost: ~$2–$4.
 
 ---
 

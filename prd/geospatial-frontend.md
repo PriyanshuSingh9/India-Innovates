@@ -1,6 +1,6 @@
 # Geospatial Frontend
 
-> Covers: F04 MapLibre GL Integration · F05 Deck.gl Layer System · F06 India Static Geo Layers · F07 Regional Preset System · F13 Map Event Markers · F30 Instability Heatmap Layer
+> Covers: F04 MapLibre GL Integration · F05 Deck.gl Layer System · F06 Strategic Geo Layers · F07 Regional Preset System · F13 Map Event Markers · F30 Instability Heatmap Layer
 
 ---
 
@@ -8,47 +8,34 @@
 
 ### What Is Being Built
 
-The core map component of BIE — an interactive, GPU-accelerated, full-screen map rendered with MapLibre GL JS, centered on the Indian subcontinent. This is the primary visual canvas on which all intelligence data is displayed.
+The core map component using MapLibre GL JS — an open-source, WebGL-powered map renderer that provides BIE's primary interface for visualizing global events spatially. The map loads a dark-themed vector tile basemap, supports smooth zooming from globe-level overviews to street-level detail, and serves as the canvas for all data layers.
 
 ### Why It Is Needed
 
-BIE is fundamentally a **geospatial** intelligence platform. Every event, threat, vessel position, and instability score has a geographic component. Without a performant map:
-
-- Events are just a list of text items with no spatial awareness
-- Analysts can't see geographic clustering (e.g., three military events near Aksai Chin in one day)
-- There's no way to visualize the LAC, LOC, IOR theater, or infrastructure proximity
-- The demo's opening moment ("Show India-centered dark map. Toggle LAC and LOC layers. Zoom into Aksai Chin.") is impossible
-
-MapLibre GL JS is chosen over Google Maps or Mapbox because:
-- **Open source** — no API key costs or usage limits
-- **Vector tiles** — smooth zooming, custom styling, dark mode
-- **WebGL rendering** — handles thousands of markers without jank
-- **Deck.gl compatible** — Deck.gl overlays work natively with MapLibre
+BIE is fundamentally a *spatial* intelligence tool. Every event, vessel, military movement, and infrastructure location has geographic coordinates. Without a performant map, BIE is just another news feed. The map provides:
+- **Immediate situational awareness** — "Where in the world should I pay attention right now?"
+- **Pattern recognition** — clusters of events near chokepoints, borders, or strategic locations become visible
+- **Context** — a maritime incident near Malacca Strait means something different than one near Norway
 
 ### What Use It Provides
 
-- **India-centric dark-themed map** — immediate visual impact at demo open
-- **Smooth vector tile rendering** — zoom from country level to street level seamlessly
-- **Custom styling** — dark base map with bright event markers for high contrast
-- **Interactive controls** — pan, zoom, rotate, pitch (3D tilt)
-- **Programmatic camera** — fly-to animations when clicking events or selecting regional presets
+- **Globe → street zoom** — seamless zoom from global overview to ground-level detail
+- **WebGL performance** — handles thousands of markers and data overlays without lag
+- **Dark theme** — Intel-aesthetic dark basemap with muted labels, matching BIE's design language
+- **Vector tiles** — smooth zoom, custom styling, detailed at every level
+- **3D perspective** — tiltable/rotatable for dramatic views of terrain (LAC mountains, IOR expanse)
+- **Multiple basemap styles** — toggle between dark, satellite, and terrain views
 
 ### How It Is Built
 
-1. **Install dependencies**:
-   ```bash
-   cd frontend
-   npm install maplibre-gl
-   ```
+1. **Install**: `npm install maplibre-gl`
 
-2. **Map component** — `frontend/app/components/Map.js`:
+2. **Map component** — `components/Map/MapView.js`:
    ```jsx
-   "use client";
-   import { useEffect, useRef } from "react";
    import maplibregl from "maplibre-gl";
    import "maplibre-gl/dist/maplibre-gl.css";
 
-   export default function Map({ onMapReady }) {
+   function MapView({ onMapReady }) {
      const mapContainer = useRef(null);
      const map = useRef(null);
 
@@ -56,33 +43,28 @@ MapLibre GL JS is chosen over Google Maps or Mapbox because:
        map.current = new maplibregl.Map({
          container: mapContainer.current,
          style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-         center: [78.9629, 22.5937],  // Center of India
-         zoom: 4.5,
-         pitch: 0,
+         center: [78.9, 22.5],  // India as initial focus
+         zoom: 3.5,             // Globe-level view showing broader region
+         pitch: 15,             // Slight tilt for depth
          bearing: 0,
+         maxZoom: 18,
+         minZoom: 1.5,          // Allow global zoom-out
+         attributionControl: false,
        });
 
        map.current.addControl(new maplibregl.NavigationControl(), "top-right");
-
-       map.current.on("load", () => {
-         onMapReady?.(map.current);
-       });
+       map.current.on("load", () => onMapReady(map.current));
 
        return () => map.current?.remove();
      }, []);
 
-     return <div ref={mapContainer} className="w-full h-full absolute inset-0" />;
+     return <div ref={mapContainer} className="map-container" />;
    }
    ```
 
-3. **Dark theme**: use CartoDB Dark Matter or a custom MapLibre style JSON with muted landmass colors, dark water, and minimal labels.
+3. **Styling**: dark basemap (`dark-matter`) with muted labels. India and surrounding regions visible at default zoom, but user can zoom out to see the full globe or zoom into any region.
 
-4. **Camera presets**: expose a `flyTo()` wrapper for animated camera transitions:
-   ```javascript
-   function flyToRegion(map, { center, zoom, bearing = 0, pitch = 0 }) {
-     map.flyTo({ center, zoom, bearing, pitch, duration: 2000, essential: true });
-   }
-   ```
+4. **Performance**: vector tiles stream progressively. Labels and minor features are only rendered at appropriate zoom levels.
 
 ---
 
@@ -90,133 +72,173 @@ MapLibre GL JS is chosen over Google Maps or Mapbox because:
 
 ### What Is Being Built
 
-A layer management system using Deck.gl that overlays data visualizations on top of the MapLibre base map. Deck.gl provides high-performance WebGL layers for scatterplots (event markers), heatmaps (instability), arcs (connections), and icon layers (infrastructure).
+An overlay layer system using Deck.gl that renders all dynamic data on top of the MapLibre basemap. Deck.gl provides GPU-accelerated visualization layers for event markers, the instability heatmap, infrastructure icons, and knowledge graph connection arcs — across the entire globe.
 
 ### Why It Is Needed
 
-MapLibre handles the base map tiles, but BIE needs to render **dynamic data layers** that update in real-time:
-
-- **Thousands of event markers** positioned at precise coordinates
-- **Heatmap overlays** showing instability intensity across regions
-- **Arc lines** showing connections between entities in the knowledge graph
-- **Icon markers** for military bases, ports, airfields
-
-Native MapLibre markers (DOM elements) don't scale beyond ~100 markers without jank. Deck.gl renders all markers as WebGL primitives on the GPU, handling 10,000+ points at 60fps.
+MapLibre handles the basemap; Deck.gl handles the data. This separation is critical because:
+- **GPU acceleration** — Deck.gl renders 10,000+ data points at 60fps via WebGL
+- **Layer compositing** — multiple data layers (events, heatmap, vessels, arcs) can be toggled independently
+- **Performance scaling** — layers can be disabled per device capability and zoom level
 
 ### What Use It Provides
 
-- **ScatterplotLayer** — event markers colored by threat level (green → yellow → red)
-- **HeatmapLayer** — instability index visualization as a continuous color field
-- **IconLayer** — infrastructure icons (military bases, ports, airfields)
-- **ArcLayer** — entity relationship arcs for knowledge graph visualization
-- **Layer toggle** — users can show/hide individual layers via a control panel
-- **Performance** — GPU-rendered, handles large datasets without framerate drops
+- **ScatterplotLayer** — event markers, colored by threat level, sized by significance
+- **HeatmapLayer** — continuous instability heatmap overlay across global regions
+- **IconLayer** — infrastructure markers, vessel positions, military bases
+- **ArcLayer** — knowledge graph relationships visualized as curved connections between locations
+- **Layer toggling** — users enable/disable individual layers via a layer control panel
+- **Zoom-adaptive rendering** — detail layers only visible at appropriate zoom levels (progressive disclosure)
 
 ### How It Is Built
 
-1. **Install**:
-   ```bash
-   npm install @deck.gl/core @deck.gl/layers @deck.gl/mapbox
-   ```
+1. **Install**: `npm install @deck.gl/core @deck.gl/layers @deck.gl/mapbox`
 
-2. **Layer manager** — `frontend/app/components/LayerManager.js`:
-   ```jsx
-   import { MapboxOverlay } from "@deck.gl/mapbox";
-   import { ScatterplotLayer, IconLayer, ArcLayer } from "@deck.gl/layers";
-   import { HeatmapLayer } from "@deck.gl/aggregation-layers";
+2. **Layer manager** — `components/Map/LayerManager.js`:
+   ```javascript
+   import { ScatterplotLayer, IconLayer, ArcLayer, HeatmapLayer } from "@deck.gl/layers";
 
-   export function createOverlay(layers) {
-     return new MapboxOverlay({
-       interleaved: true,
-       layers,
-     });
-   }
+   export function buildLayers({ events, heatmapData, infrastructure, graphArcs, zoom }) {
+     const layers = [];
 
-   export function createEventLayer(events) {
-     return new ScatterplotLayer({
+     // Event markers — always visible
+     layers.push(new ScatterplotLayer({
        id: "events",
        data: events,
        getPosition: (d) => [d.location.lng, d.location.lat],
-       getRadius: (d) => threatRadius(d.threat_level),
-       getFillColor: (d) => threatColor(d.threat_level),
+       getFillColor: (d) => THREAT_COLORS[d.threat_level],
+       getRadius: (d) => d.threat_level === "CRITICAL" ? 12000 : 8000,
        pickable: true,
+       radiusScale: 1,
        radiusMinPixels: 4,
        radiusMaxPixels: 20,
+     }));
+
+     // Heatmap — visible at zoom < 6 (overview mode)
+     if (zoom < 6) {
+       layers.push(new HeatmapLayer({
+         id: "instability-heatmap",
+         data: heatmapData,
+         getPosition: (d) => [d.lng, d.lat],
+         getWeight: (d) => d.score,
+         radiusPixels: 60,
+         intensity: 1.5,
+         colorRange: [
+           [0, 255, 0, 50],     // green — low
+           [255, 255, 0, 100],   // yellow
+           [255, 165, 0, 150],   // orange
+           [255, 0, 0, 200],     // red — high
+         ],
+       }));
+     }
+
+     // Infrastructure — visible at zoom > 3
+     if (zoom > 3) {
+       layers.push(new IconLayer({
+         id: "infrastructure",
+         data: infrastructure,
+         getPosition: (d) => [d.lng, d.lat],
+         getIcon: (d) => infraIcon(d.type),
+         getSize: 28,
+         pickable: true,
+       }));
+     }
+
+     return layers;
+   }
+   ```
+
+3. **Threat color mapping**:
+   ```javascript
+   const THREAT_COLORS = {
+     LOW: [46, 204, 113],        // green
+     MEDIUM: [241, 196, 15],     // yellow
+     HIGH: [231, 76, 60],        // red
+     CRITICAL: [192, 57, 43],    // dark red, pulsing
+   };
+   ```
+
+4. **Performance**: cap at 500 visible markers. Use viewport culling. Disable HeatmapLayer on devices with `navigator.hardwareConcurrency < 4`.
+
+---
+
+## F06 — Strategic Geo Layers
+
+### What Is Being Built
+
+Static GeoJSON layers that overlay strategically important boundaries, routes, and zones on the map. These provide essential geographic context for intelligence events — showing contested borders, maritime chokepoints, strategic corridors, and alliance boundaries.
+
+### Why It Is Needed
+
+Events near the LAC, in the Strait of Malacca, or along BRI routes carry specific strategic significance that generic map labels don't convey. These layers provide the "so what?" context:
+- "This military exercise is happening 50km from the LAC" — visible only if the LAC is drawn
+- "This port investment is part of China's String of Pearls" — visible only if those ports are marked
+- "This chokepoint disruption affects India's oil supply" — visible only if chokepoints are displayed
+
+### What Use It Provides
+
+- **India-specific borders**: LAC (Line of Actual Control), LOC (Line of Control), India-claimed territory boundaries
+- **Maritime chokepoints**: Strait of Malacca, Strait of Hormuz, Bab el-Mandeb, Suez Canal, Lombok Strait, Taiwan Strait
+- **BRI corridors**: China-Pakistan Economic Corridor (CPEC), Maritime Silk Road, key BRI port investments
+- **Military presence**: India's overseas military facilities (Agaléga, Assumption Island, Farkhor), Chinese bases (Djibouti, Gwadar, Hambantota, Ream)
+- **Alliance boundaries**: Quad nations, SCO members, BRICS nations
+- **All layers toggleable** via the layer control panel
+
+### How It Is Built
+
+1. **Directory structure**:
+   ```
+   frontend/public/geo/
+   ├── india_borders/
+   │   ├── lac.geojson          — Line of Actual Control
+   │   ├── loc.geojson          — Line of Control
+   │   └── state_borders.geojson
+   ├── chokepoints/
+   │   ├── malacca.geojson      — Strait of Malacca zone
+   │   ├── hormuz.geojson       — Strait of Hormuz zone
+   │   ├── bab_el_mandeb.geojson
+   │   ├── suez.geojson
+   │   ├── lombok.geojson
+   │   └── taiwan_strait.geojson
+   ├── bri_corridors/
+   │   ├── cpec.geojson         — China-Pakistan Economic Corridor
+   │   └── maritime_silk_road.geojson
+   ├── military_bases/
+   │   ├── india_overseas.geojson
+   │   └── china_overseas.geojson
+   └── alliances/
+       ├── quad_nations.geojson
+       └── sco_members.geojson
+   ```
+
+2. **Layer loading** — `components/Map/GeoLayers.js`:
+   ```javascript
+   const GEO_LAYERS = {
+     lac: { url: "/geo/india_borders/lac.geojson", color: "#ff4444", dashArray: [4, 2], label: "LAC" },
+     loc: { url: "/geo/india_borders/loc.geojson", color: "#ff8800", dashArray: [4, 2], label: "LOC" },
+     chokepoints: { url: "/geo/chokepoints/all.geojson", color: "#00d4ff", fill: true, label: "Chokepoints" },
+     bri: { url: "/geo/bri_corridors/cpec.geojson", color: "#ff0066", width: 3, label: "BRI/CPEC" },
+     india_bases: { url: "/geo/military_bases/india_overseas.geojson", color: "#00ff88", label: "India Bases" },
+     china_bases: { url: "/geo/military_bases/china_overseas.geojson", color: "#ff3333", label: "China Bases" },
+   };
+
+   async function loadGeoLayer(map, layerId) {
+     const config = GEO_LAYERS[layerId];
+     const resp = await fetch(config.url);
+     const geojson = await resp.json();
+     map.addSource(layerId, { type: "geojson", data: geojson });
+     map.addLayer({
+       id: layerId,
+       type: config.fill ? "fill" : "line",
+       source: layerId,
+       paint: config.fill
+         ? { "fill-color": config.color, "fill-opacity": 0.15 }
+         : { "line-color": config.color, "line-width": 2, "line-dasharray": config.dashArray || [1] },
      });
    }
    ```
 
-3. **Threat-level color mapping**:
-   ```javascript
-   const THREAT_COLORS = {
-     LOW: [46, 204, 113, 180],       // Green
-     MEDIUM: [241, 196, 15, 200],    // Yellow
-     HIGH: [231, 76, 60, 220],       // Red
-     CRITICAL: [192, 57, 43, 255],   // Dark Red, pulsing
-   };
-   ```
-
-4. **Layer toggle panel**: a floating control with checkboxes for each layer (Events, Heatmap, Infrastructure, Connections). Toggle updates the Deck.gl overlay's `layers` array.
-
-5. **Performance cap**: as per the risk register, cap ScatterplotLayer at 500 visible markers and disable HeatmapLayer on low-GPU devices.
-
----
-
-## F06 — India Static Geo Layers
-
-### What Is Being Built
-
-GeoJSON-based boundary layers showing India's critical geopolitical lines: the Line of Actual Control (LAC), Line of Control (LOC), international borders, state boundaries, union territory boundaries, and key strategic zones (Aksai Chin, Arunachal Pradesh, Siachen, IOR chokepoints).
-
-### Why It Is Needed
-
-Intelligence events are meaningless without geographic context. An event near "Galwan Valley" means nothing on a blank map. But overlay the LAC line, and suddenly the event is visually positioned within meters of the disputed border — the significance is immediately obvious.
-
-The demo script requires: *"Show India-centered dark map. Toggle LAC and LOC layers. Zoom into Aksai Chin."* This feature makes that moment possible.
-
-### What Use It Provides
-
-- **LAC line** — the de facto China-India border, drawn from published coordinates
-- **LOC line** — the India-Pakistan de facto border in Kashmir
-- **International borders** — India's recognized international boundaries
-- **State boundaries** — all 28 states and 8 union territories
-- **Strategic zones** — highlighted areas for Aksai Chin, Arunachal Pradesh, Doklam, Siachen Glacier
-- **IOR chokepoints** — Strait of Malacca, Strait of Hormuz, Bab el-Mandeb
-- **Toggle control** — each layer can be independently shown/hidden
-
-### How It Is Built
-
-1. **GeoJSON data files** in `data/geo/`:
-   ```
-   data/geo/
-   ├── lac.geojson
-   ├── loc.geojson
-   ├── india_borders.geojson
-   ├── india_states.geojson
-   ├── strategic_zones.geojson
-   └── ior_chokepoints.geojson
-   ```
-
-2. **Source the GeoJSON**: use Natural Earth Data (public domain) for country/state borders. LAC and LOC lines from published academic/government sources. Strategic zones are manually defined polygons.
-
-3. **MapLibre layer addition**:
-   ```javascript
-   map.addSource("lac", { type: "geojson", data: "/geo/lac.geojson" });
-   map.addLayer({
-     id: "lac-line",
-     type: "line",
-     source: "lac",
-     paint: {
-       "line-color": "#e74c3c",
-       "line-width": 2,
-       "line-dasharray": [4, 2],
-     },
-   });
-   ```
-
-4. **Layer styling**: dashed red for LAC, dashed orange for LOC, solid gray for state borders, highlighted fill for strategic zones.
-
-5. **Load on demand**: GeoJSON files are loaded after the map initializes, not bundled in the JS build.
+3. **Default visibility**: LAC and LOC always visible when zoomed into South Asia. Chokepoints visible at zoom < 6. BRI and bases toggled by user.
 
 ---
 
@@ -224,88 +246,136 @@ The demo script requires: *"Show India-centered dark map. Toggle LAC and LOC lay
 
 ### What Is Being Built
 
-A set of one-click camera presets that instantly fly the map to strategically important regions. Each preset defines a center coordinate, zoom level, pitch, and bearing optimized for that region's geography.
+A set of one-click navigation buttons that fly the map camera to strategically important regions with pre-configured zoom, pitch, and bearing. Each preset activates relevant geo layers and filters the news feed to show events from that region.
 
 ### Why It Is Needed
 
-India is a vast country. An analyst monitoring the LAC needs a different view than one watching the Indian Ocean. Manually panning and zooming to each region wastes time and breaks the demo flow. Presets provide instant, cinematic transitions to key areas.
-
-The demo script jumps between Aksai Chin and the IOR theater — presets make these transitions smooth 2-second animations instead of awkward manual panning.
+Analysts shouldn't have to manually pan and zoom to find the South China Sea or the Strait of Hormuz. Presets provide instant navigation to India's key strategic theaters. During the demo, presets enable smooth transitions: *"Let me show you the LAC situation... now zoom out to the IOR... and here's the South China Sea."*
 
 ### What Use It Provides
 
-- **One-click navigation** to key strategic regions
-- **Animated fly-to** transitions (2-second duration) for cinematic feel
-- **Consistent framing** — every team member and every demo shows the same view of each region
-- **Region-filtered data** — selecting a preset can also filter events/markers to that region
+- **One-click navigation** to 12+ strategic regions relevant to Indian interests
+- **Animated camera transitions** — smooth fly-to with configurable duration
+- **Auto-layer activation** — LAC preset auto-enables LAC border layer; IOR preset enables chokepoints
+- **Auto-filter** — activating a preset filters the news feed to that region's events
+- **URL encoding** — active preset encoded in URL hash for sharing: `?preset=south_china_sea`
 
 ### How It Is Built
 
-1. **Preset definitions**:
+1. **Preset definitions** — `config/presets.js`:
    ```javascript
    export const REGIONAL_PRESETS = {
-     INDIA_OVERVIEW: {
-       label: "India Overview",
-       center: [78.9629, 22.5937],
-       zoom: 4.5,
-       pitch: 0,
-       bearing: 0,
+     // ----- India & Immediate Neighborhood -----
+     aksai_chin: {
+       label: "Aksai Chin / LAC",
+       center: [79.0, 35.0], zoom: 7, pitch: 45, bearing: -15,
+       layers: ["lac"], filter: { geo_focus: "SOUTH_ASIA" },
+       description: "Line of Actual Control — India-China disputed border"
      },
-     LAC_WEST: {
-       label: "LAC — Aksai Chin",
-       center: [78.5, 35.0],
-       zoom: 7,
-       pitch: 45,
-       bearing: -20,
+     kashmir: {
+       label: "Kashmir / LOC",
+       center: [74.8, 34.0], zoom: 7.5, pitch: 40, bearing: 0,
+       layers: ["loc"], filter: { geo_focus: "SOUTH_ASIA" },
+       description: "Line of Control — India-Pakistan disputed border"
      },
-     LAC_EAST: {
-       label: "LAC — Arunachal",
-       center: [93.5, 28.0],
-       zoom: 7,
-       pitch: 30,
-       bearing: 10,
-     },
-     LOC_KASHMIR: {
-       label: "LOC — Kashmir",
-       center: [74.8, 34.1],
-       zoom: 7.5,
-       pitch: 30,
-       bearing: 0,
-     },
-     SIACHEN: {
+     siachen: {
        label: "Siachen Glacier",
-       center: [77.1, 35.4],
-       zoom: 9,
-       pitch: 60,
-       bearing: -30,
+       center: [77.1, 35.5], zoom: 9, pitch: 60, bearing: 30,
+       layers: ["lac", "loc"], filter: { geo_focus: "SOUTH_ASIA" },
+       description: "World's highest battleground"
      },
-     IOR_OVERVIEW: {
-       label: "Indian Ocean Region",
-       center: [73.0, 5.0],
-       zoom: 3.5,
-       pitch: 0,
-       bearing: 0,
-     },
-     STRAIT_MALACCA: {
-       label: "Strait of Malacca",
-       center: [101.5, 2.5],
-       zoom: 6,
-       pitch: 0,
-       bearing: 0,
-     },
-     NORTHEAST: {
+     northeast: {
        label: "Northeast India",
-       center: [93.0, 26.0],
-       zoom: 6.5,
-       pitch: 20,
-       bearing: 0,
+       center: [93.0, 26.0], zoom: 6.5, pitch: 30, bearing: 0,
+       layers: ["lac"], filter: { geo_focus: "SOUTH_ASIA" },
+       description: "India's strategic corridor to Southeast Asia"
+     },
+
+     // ----- Indian Ocean Region -----
+     indian_ocean: {
+       label: "Indian Ocean Region",
+       center: [72.0, 0.0], zoom: 3, pitch: 10, bearing: 0,
+       layers: ["chokepoints", "india_bases", "china_bases"],
+       filter: { geo_focus: "IOR", category: "MARITIME" },
+       description: "India's primary maritime domain"
+     },
+
+     // ----- Indo-Pacific -----
+     south_china_sea: {
+       label: "South China Sea",
+       center: [115.0, 12.0], zoom: 5, pitch: 20, bearing: 0,
+       layers: ["chokepoints", "china_bases"],
+       filter: { geo_focus: "INDO_PACIFIC" },
+       description: "Most contested waterway — 9-dash line, island militarization"
+     },
+     taiwan_strait: {
+       label: "Taiwan Strait",
+       center: [119.5, 24.0], zoom: 6.5, pitch: 30, bearing: 0,
+       layers: ["chokepoints", "china_bases"],
+       filter: { geo_focus: "INDO_PACIFIC" },
+       description: "Potential flashpoint — PLA military pressure on Taiwan"
+     },
+     malacca_strait: {
+       label: "Strait of Malacca",
+       center: [101.0, 2.5], zoom: 6, pitch: 15, bearing: 0,
+       layers: ["chokepoints"],
+       filter: { geo_focus: "INDO_PACIFIC", category: "MARITIME" },
+       description: "80% of India's oil imports transit here"
+     },
+
+     // ----- Middle East -----
+     persian_gulf: {
+       label: "Persian Gulf / Hormuz",
+       center: [54.0, 26.0], zoom: 5.5, pitch: 20, bearing: 0,
+       layers: ["chokepoints"],
+       filter: { geo_focus: "MIDDLE_EAST" },
+       description: "Strait of Hormuz — 20% of global oil transit"
+     },
+     red_sea: {
+       label: "Red Sea / Bab el-Mandeb",
+       center: [42.0, 14.0], zoom: 5, pitch: 15, bearing: 0,
+       layers: ["chokepoints"],
+       filter: { geo_focus: "MIDDLE_EAST", category: "MARITIME" },
+       description: "Houthi threat zone — Suez Canal access"
+     },
+
+     // ----- Africa -----
+     horn_of_africa: {
+       label: "Horn of Africa",
+       center: [45.0, 8.0], zoom: 5, pitch: 15, bearing: 0,
+       layers: ["china_bases"],
+       filter: { geo_focus: "AFRICA" },
+       description: "China's Djibouti base, piracy corridor, Ethiopia/Somalia dynamics"
+     },
+
+     // ----- Central Asia -----
+     central_asia: {
+       label: "Central Asia / Afghanistan",
+       center: [67.0, 36.0], zoom: 5, pitch: 20, bearing: 0,
+       layers: [],
+       filter: { geo_focus: "CENTRAL_ASIA" },
+       description: "Afghanistan instability, SCO dynamics, India's connectivity aspirations"
      },
    };
    ```
 
-2. **Preset selector UI**: a dropdown or button row in the map controls area. Clicking a preset calls `map.flyTo(preset)`.
+2. **Preset navigation**:
+   ```javascript
+   function flyToPreset(map, presetId) {
+     const preset = REGIONAL_PRESETS[presetId];
+     map.flyTo({
+       center: preset.center,
+       zoom: preset.zoom,
+       pitch: preset.pitch,
+       bearing: preset.bearing,
+       duration: 2000,
+       essential: true,
+     });
+     // Activate relevant layers, apply feed filters
+   }
+   ```
 
-3. **URL sync**: the active preset is reflected in the URL hash (`#region=LAC_WEST`) so links can be shared.
+3. **UI**: horizontal scrollable preset bar at the top of the map. Each button shows the region name with a subtle flag/icon.
 
 ---
 
@@ -313,56 +383,44 @@ The demo script jumps between Aksai Chin and the IOR theater — presets make th
 
 ### What Is Being Built
 
-Interactive markers on the map representing individual intelligence events. Each marker is a Deck.gl ScatterplotLayer point, colored and sized by threat level, with click-to-open detail panels showing extracted entities, source links, and proximity analysis.
+Interactive markers on the map representing intelligence events, rendered via Deck.gl's ScatterplotLayer. Each marker is color-coded by threat level (green/yellow/red/pulsing red), shows a category icon, and opens a detail panel on click.
 
 ### Why It Is Needed
 
-The map needs to show *where* things are happening. The demo script requires: *"A live news item arrives in the feed. Click it. Map flies to the event location."* and *"Click the event marker. Show EventDetailPanel with extracted entities and proximity infrastructure."*
-
-Markers are the visual bridge between the news feed (textual) and the map (spatial). Without them, the map is just a pretty background with no intelligence on it.
+The map is how analysts spot geographic patterns. Clusters of red markers near the LAC or a sudden cluster in the South China Sea are immediately visible patterns that a text feed cannot convey.
 
 ### What Use It Provides
 
-- **Spatial awareness** — see all events positioned on the map simultaneously
-- **Threat visualization** — color coding (green/yellow/red) instantly communicates severity
-- **Click interaction** — clicking a marker opens a detail panel with full event information
-- **Hover tooltip** — hovering shows title and threat level without clicking
-- **Animation** — new events appear with a brief pulse animation; CRITICAL events pulse continuously
-- **Clustering** — when zoomed out, nearby events cluster into a single marker showing count
+- **Threat-level coloring** — instant visual assessment of severity
+- **Category icons** — distinguish military from diplomatic from maritime at a glance
+- **Click-to-detail** — opens the EventDetailPanel with full NLP analysis, entities, infrastructure proximity
+- **Click-to-fly** — clicking a marker from the news feed flies the map to that location
+- **Viewport filtering** — only events within the visible map area are rendered
+- **Smart clustering** — at low zoom levels, nearby markers cluster with count badges
 
 ### How It Is Built
 
-1. **Event layer** (built in F05) is populated with real event data from `GET /api/events?bbox=...`
-
-2. **Click handler**:
+1. **Event marker layer** (Deck.gl ScatterplotLayer):
    ```javascript
-   const eventLayer = new ScatterplotLayer({
-     id: "events",
-     data: events,
+   new ScatterplotLayer({
+     id: "event-markers",
+     data: viewportEvents,
      getPosition: (d) => [d.location.lng, d.location.lat],
      getFillColor: (d) => THREAT_COLORS[d.threat_level],
+     getRadius: (d) => THREAT_RADII[d.threat_level],
      pickable: true,
+     radiusMinPixels: 4,
+     radiusMaxPixels: 20,
      onClick: ({ object }) => {
-       setSelectedEvent(object);
-       map.flyTo({ center: [object.location.lng, object.location.lat], zoom: 10 });
-     },
-     onHover: ({ object, x, y }) => {
-       setTooltip(object ? { object, x, y } : null);
+       onEventSelect(object);
+       map.flyTo({ center: [object.location.lng, object.location.lat], zoom: 8 });
      },
    });
    ```
 
-3. **EventDetailPanel** — a slide-out panel showing:
-   - Event title and summary
-   - Source and timestamp
-   - Extracted entities (people, organizations, locations)
-   - Threat level badge
-   - Infrastructure proximity list (military bases within 50km, etc.)
-   - Link to original source
+2. **Performance caps**: maximum 500 markers visible. At zoom < 4, cluster into region-level aggregates. Prioritize Tier 1 and HIGH/CRITICAL events when cap is reached.
 
-4. **Real-time updates**: new events from the SSE stream (`/api/events/stream`) are appended to the events array, triggering a layer re-render.
-
-5. **Performance**: viewport-based filtering — only request events within the current map bounding box. Cap at 500 visible markers.
+3. **Pulsing animation**: CRITICAL events get a CSS pulse animation overlay via a separate HTML marker layer.
 
 ---
 
@@ -370,57 +428,46 @@ Markers are the visual bridge between the news feed (textual) and the map (spati
 
 ### What Is Being Built
 
-A continuous color heatmap overlay on the map showing the **India Instability Index (III)** — a per-region score from 0.0 (stable) to 1.0 (highly unstable). High-instability regions glow red/orange; stable regions are transparent. The heatmap updates as new events are ingested and scores recalculated.
+A continuous color-coded heatmap overlay that visualizes the BIE Instability Index (BII) scores across regions of Indian strategic interest globally. High-instability regions glow red; stable regions are green or transparent.
 
 ### Why It Is Needed
 
-Individual event markers show *what* happened. The instability heatmap shows *where tensions are building*. A cluster of LOW-threat events in a region might individually seem harmless, but the heatmap reveals that the cumulative instability score is rising — a pattern invisible from markers alone.
-
-The demo script includes: *"Convergence alert fires near Aksai Chin. Posture panel escalates to HIGH."* The heatmap makes this visually dramatic — the region glows brighter as instability increases.
+Individual event markers show *what* is happening; the heatmap shows *how worried you should be* about a region overall. It transforms dozens of discrete events into a continuous threat assessment overlay — enabling instant visual comparison: "Is the LAC hotter than the South China Sea right now?"
 
 ### What Use It Provides
 
-- **Regional instability at a glance** — one look at the map shows where India's pressure points are
-- **Temporal awareness** — scores update over time, showing whether regions are stabilizing or escalating
-- **Anomaly highlighting** — sudden score spikes create visible "hot spots" on the map
-- **Layered with markers** — heatmap provides context behind individual events
+- **Global threat assessment** — one glance shows which theaters are active
+- **Continuous overlay** — smooth color blending between data points
+- **Dynamic updates** — recalculates as new events are ingested
+- **Complements markers** — markers show events, heatmap shows aggregate threat
+- **India-priority weighting** — regions closer to India or of higher strategic relevance show with greater intensity
 
 ### How It Is Built
 
-1. **Data source**: `GET /api/instability` returns per-region scores:
-   ```json
-   [
-     { "region": "LAC_WEST", "score": 0.75, "lat": 35.0, "lng": 78.5 },
-     { "region": "KASHMIR", "score": 0.82, "lat": 34.1, "lng": 74.8 },
-     { "region": "NORTHEAST", "score": 0.45, "lat": 26.0, "lng": 93.0 }
-   ]
-   ```
+1. **Data source**: BII scores from `GET /api/instability` — returns per-region scores.
 
-2. **Deck.gl HeatmapLayer**:
+2. **Heatmap layer** (Deck.gl HeatmapLayer):
    ```javascript
-   import { HeatmapLayer } from "@deck.gl/aggregation-layers";
-
-   const heatmapLayer = new HeatmapLayer({
+   new HeatmapLayer({
      id: "instability-heatmap",
-     data: instabilityScores,
+     data: heatmapData,  // Array of {lat, lng, score} from BII
      getPosition: (d) => [d.lng, d.lat],
      getWeight: (d) => d.score,
-     radiusPixels: 80,
+     radiusPixels: 60,
      intensity: 1.5,
      threshold: 0.1,
      colorRange: [
-       [0, 0, 0, 0],         // Transparent (stable)
-       [255, 255, 0, 100],    // Yellow
-       [255, 165, 0, 160],    // Orange
-       [255, 69, 0, 200],     // Red-Orange
-       [255, 0, 0, 240],      // Red (highly unstable)
+       [0, 255, 0, 50],       // green — low
+       [255, 255, 0, 100],     // yellow — moderate
+       [255, 165, 0, 150],     // orange — elevated
+       [255, 0, 0, 200],       // red — high
      ],
    });
    ```
 
-3. **Auto-refresh**: poll `/api/instability` every 60 seconds. On score change, smoothly transition the heatmap intensity.
+3. **Visibility strategy**: heatmap is most useful at low zoom (global/regional overview). At high zoom levels (zoom > 7), individual event markers provide better detail — so the heatmap fades out via `opacity: Math.max(0, 1 - (zoom - 5) * 0.3)`.
 
-4. **Performance**: disable on low-GPU devices (detected via `navigator.hardwareConcurrency < 4`). Provide a toggle in the layer controls.
+4. **Performance**: disable on low-GPU devices. Limit data points to top 100 highest-scoring cells.
 
 ---
 

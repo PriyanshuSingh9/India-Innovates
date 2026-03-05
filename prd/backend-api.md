@@ -99,8 +99,11 @@ The critical path analysis identifies this feature as central: `F02 → F03 → 
 
 - **Live event feed** — the news panel shows real ingested events, not mock data
 - **Geo-filtered events** — the map can request only events within its current viewport (bounding box)
-- **Category filtering** — filter by `MILITARY`, `DIPLOMATIC`, `ECONOMIC`, `INTERNAL`, `MARITIME`
+- **Category filtering** — filter by `MILITARY`, `DIPLOMATIC`, `ECONOMIC`, `INTERNAL`, `MARITIME`, `CYBER`, `TERRORISM`
 - **Threat-level filtering** — show only `HIGH` or `CRITICAL` events
+- **Region filtering** — filter by strategic region (e.g., `SOUTH_ASIA`, `INDO_PACIFIC`, `MIDDLE_EAST`)
+- **Country filtering** — filter by ISO country code (e.g., `CN`, `PK`, `AF`)
+- **India-relevance filtering** — filter by `india_relevance` threshold (e.g., `>0.5`)
 - **Pagination** — efficient cursor-based pagination for large result sets
 - **Real-time streaming** — SSE endpoint pushes new events to connected clients without polling
 
@@ -110,7 +113,7 @@ The critical path analysis identifies this feature as central: `F02 → F03 → 
 
    | Method | Path | Description |
    |---|---|---|
-   | `GET` | `/api/events` | List events, supports `?category=`, `?threat_level=`, `?bbox=`, `?limit=`, `?cursor=` |
+   | `GET` | `/api/events` | List events, supports `?category=`, `?threat_level=`, `?region=`, `?country=`, `?india_relevance_min=`, `?bbox=`, `?limit=`, `?cursor=` |
    | `GET` | `/api/events/{id}` | Get a single event with full detail including entities, proximity analysis |
    | `GET` | `/api/events/stream` | SSE stream — pushes new events as they arrive |
    | `GET` | `/api/events/stats` | Aggregated stats: event counts by category, threat level, region |
@@ -130,6 +133,9 @@ The critical path analysis identifies this feature as central: `F02 → F03 → 
        bbox: Optional[str] = None,  # "min_lng,min_lat,max_lng,max_lat"
        category: Optional[str] = None,
        threat_level: Optional[str] = None,
+       region: Optional[str] = None,
+       country: Optional[str] = None,
+       india_relevance_min: Optional[float] = None,
        limit: int = 50,
        cursor: Optional[str] = None,
    ):

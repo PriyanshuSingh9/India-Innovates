@@ -48,12 +48,14 @@ A cohesive design language is what separates a hackathon prototype from a produc
      --bie-threat-high: #e74c3c;         /* Red */
      --bie-threat-critical: #c0392b;     /* Dark red */
 
-     /* Categories */
+     /* Categories (7-category system) */
      --bie-cat-military: #e74c3c;        /* Red */
      --bie-cat-diplomatic: #3498db;      /* Blue */
      --bie-cat-economic: #2ecc71;        /* Green */
      --bie-cat-internal: #e67e22;        /* Orange */
      --bie-cat-maritime: #1abc9c;        /* Teal */
+     --bie-cat-cyber: #9b59b6;           /* Purple */
+     --bie-cat-terrorism: #8b1a1a;       /* Dark Red */
 
      /* Posture */
      --bie-posture-normal: #2ecc71;

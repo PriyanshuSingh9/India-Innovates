@@ -19,16 +19,16 @@ Demoing from a development environment guarantees failure:
 - A developer pushing broken code can crash the demo minutes beforehand
 
 The demo environment is a **production clone** with:
-- Pre-seeded Neo4j (1,000 curated facts)
-- Pre-embedded Qdrant (10,000 documents)
+- Pre-seeded Neo4j (1,000+ curated global strategic facts — military, diplomatic, alliances, infrastructure)
+- Pre-embedded Qdrant (10,000 documents from global sources)
 - Scripted demo inject endpoint for guaranteed convergence events
 - Frozen deployment — no pushes after Day 19
 
 ### What Use It Provides
 
 - **Stability** — isolated from dev work; nothing breaks it
-- **Pre-seeded data** — graph is rich, vector search returns strong results
-- **Demo inject** — `POST /demo/inject` seeds scripted scenarios (LAC_CONVERGENCE, IOR_SURGE, DIPLOMATIC_CRISIS)
+- **Pre-seeded data** — graph is rich with global strategic facts, vector search returns strong results
+- **Demo inject** — `POST /demo/inject` seeds scripted scenarios (LAC_CONVERGENCE, IOR_SURGE, DIPLOMATIC_CRISIS, SCS_ESCALATION, RED_SEA_CRISIS)
 - **Budget safety** — Anthropic API key daily spend limit set to $50
 - **Backup plan** — screen-recorded .mp4 for each capability if live demo fails
 
@@ -52,9 +52,11 @@ The demo environment is a **production clone** with:
    @router.post("/demo/inject")
    async def inject_scenario(scenario: str):
        SCENARIOS = {
-           "LAC_CONVERGENCE": [...],   # Scripted events near Aksai Chin
-           "IOR_SURGE": [...],          # Chinese naval movement events
-           "DIPLOMATIC_CRISIS": [...],  # Ambassador recall, sanctions
+           "LAC_CONVERGENCE": [...],      # Military + Diplomatic + Economic near Aksai Chin
+           "IOR_SURGE": [...],             # Chinese naval movement in Indian Ocean
+           "DIPLOMATIC_CRISIS": [...],     # Ambassador recall, sanctions, UN vote
+           "SCS_ESCALATION": [...],        # PLA exercises near Taiwan, QUAD response
+           "RED_SEA_CRISIS": [...],        # Houthi attack, shipping disruption, Indian Navy response
        }
        events = SCENARIOS.get(scenario, [])
        for event in events:
@@ -101,13 +103,13 @@ The demo script is documented in `/docs/DEMO_SCRIPT.md`:
 
 | Minute | Action | What It Proves |
 |---|---|---|
-| 0:00–0:30 | Open BIE. Show India-centered dark map. Toggle LAC and LOC layers. Zoom into Aksai Chin. | Real geospatial interface, not a slide deck. |
-| 0:30–1:15 | Live news item arrives in feed (PTI wire). Click it. Map flies to event location. | Real-time ingestion pipeline. India-first geo-location. |
-| 1:15–2:00 | Click event marker. Show EventDetailPanel with entities and proximity infrastructure. | NLP extraction. Infrastructure proximity analysis. |
-| 2:00–3:00 | Type query: "What is China doing near the LAC this week?" Watch streaming answer. | GraphRAG working. LLM grounded in real data. |
-| 3:00–3:45 | Convergence alert fires (demo inject). Posture panel escalates to HIGH. | Anomaly detection + convergence. III live. |
-| 3:45–4:30 | Click Generate Brief. Show strategic brief generating in real time. | Auto-generated intelligence product. |
-| 4:30–5:00 | Zoom to IOR. Show vessel tracker. Closing: "Palantir charges $50M. We built it in 3 weeks." | The pitch. |
+| 0:00–0:30 | Open BIE. Globe view — dark map centered on India at zoom 3.5. Toggle LAC, LOC, and chokepoint layers. Zoom into Aksai Chin. | Real geospatial interface, global scope with India focus. |
+| 0:30–1:15 | Live news item arrives in feed (Reuters global wire). Click it. Map flies to event location (could be Middle East, SCS, etc.). Show India-relevance 🇮🇳 flag. | Real-time global ingestion. India-relevance scoring. |
+| 1:15–2:00 | Click event marker. Show EventDetailPanel with entities (PLA units, weapon systems), proximity to strategic infrastructure (e.g., "45km from Gwadar Port"). | NLP extraction with strategic NER. Global infrastructure proximity. |
+| 2:00–3:00 | Type query: "How is China's military posture in the South China Sea affecting QUAD dynamics?" Watch streaming answer with citations. | GraphRAG working. Global scope. India-impact analysis. |
+| 3:00–3:45 | Convergence alert fires (demo inject LAC_CONVERGENCE). Posture panel escalates from ELEVATED to HIGH. Show BII scores across theaters. | Anomaly detection + convergence. Global BII with India-proximity weighting. |
+| 3:45–4:30 | Click Generate Brief. Show "India Neighborhood Watch" and "Indo-Pacific Theater" sections generating. | Auto-generated global intelligence product with India-impact analysis. |
+| 4:30–5:00 | Zoom to IOR. Show vessel tracker with AIS data from multiple chokepoints. Flash regional presets (Persian Gulf → SCS → Horn of Africa). Closing: "Palantir charges $50M. We built it in 3 weeks — for India." | The pitch. Global reach, India purpose. |
 
 **Rehearsal schedule**:
 - **Day 20 AM**: full rehearsal, entire team watches, gives feedback
